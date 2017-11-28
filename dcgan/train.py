@@ -125,6 +125,7 @@ def fit_dataset(generator,
         custom_discriminator=None,
         observer=_EmptyObserver()
         ):
+
     if (dataset is None) or (dataset.size() == 0):
         raise ValueError("学習データがありません")
 
