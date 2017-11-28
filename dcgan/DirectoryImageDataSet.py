@@ -21,16 +21,23 @@ class DirectoryImageDataSet(BaseDataSet):
         self.files = _dataset_files(self.dir, ["png"])
         self.data_shape = (len(self.files),) + data_shape
 
-    def batch(self, batch_id):
+    def batch(self):
         """
-        batch_id で指定されたバッチデータをリストで返す（呼び出し側は正規化済みのデータが帰ることを前提としている）
-        :param batch_id: バッチインデックス 
-        :return: batch_id 番目のバッチデータ
+        バッチデータをリストで返すジェネレータ
+        （呼び出し側は正規化済みのデータが帰ることを前提としている）
+        :return: バッチデータ
         """
-        first = batch_id * self.data_size_per_batch
-        last = first + self.data_size_per_batch
+        for batch_id in range(self.batch_size()):
+            first = batch_id * self.size_per_batch()
+            last = first + self.size_per_batch()
+            yield self.samples(range(first, last), True)
 
-        return self.samples(range(first, last), True)
+    def batch_size(self):
+        """
+        1エポックのバッチ数を返す
+        :return: 1エポックのバッチ数
+        """
+        return self.size() // self.size_per_batch()
 
     def size(self):
         """
@@ -45,6 +52,13 @@ class DirectoryImageDataSet(BaseDataSet):
         :return: (全レコード数, 1データの幅, 高さ, 深さ)のタプル
         """
         return self.data_shape
+
+    def size_per_batch(self):
+        """
+        1バッチのデータ数を返す
+        :return: 1バッチのデータ数
+        """
+        return self.data_size_per_batch
 
     def samples(self, ids, normalized):
         """

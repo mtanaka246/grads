@@ -44,13 +44,23 @@ class _ListDataSet(BaseDataSet):
         self.dataset = dataset
         self.data_size_per_batch = data_size_per_batch
 
-    def batch(self, batch_id):
+    def batch(self):
         """
-        batch_id で指定されたバッチデータをリストで返す（呼び出し側は正規化済みのデータが帰ることを前提としている）
-        :param batch_id: バッチインデックス 
-        :return: batch_id 番目のバッチデータ
+        バッチデータをリストで返すジェネレータ
+        （呼び出し側は正規化済みのデータが帰ることを前提としている）
+        :return: バッチデータ
         """
-        return self.dataset[batch_id * self.data_size_per_batch: (batch_id + 1) * self.data_size_per_batch]
+        for batch_id in range(self.batch_size()):
+            first = batch_id * self.size_per_batch()
+            last = first + self.size_per_batch()
+            yield self.dataset[first:last]
+
+    def batch_size(self):
+        """
+        1エポックのバッチ数を返す
+        :return: 1エポックのバッチ数
+        """
+        return self.size() // self.size_per_batch()
 
     def size(self):
         """
@@ -65,6 +75,13 @@ class _ListDataSet(BaseDataSet):
         :return: (全レコード数, 1データの高さ, 幅, 深さ)のタプル
         """
         return self.dataset.shape
+
+    def size_per_batch(self):
+        """
+        1バッチのデータ数を返す
+        :return: 1バッチのデータ数
+        """
+        return self.data_size_per_batch
 
 def fit(generator,
         dataset,
@@ -123,7 +140,6 @@ def fit_dataset(generator,
         image_shape=dataset.shape()[1:],
         working_dir=working_dir,
         epochs=epochs,
-        data_size_per_batch=dataset.data_size_per_batch,
         d_learning_rate=d_learning_rate,
         d_beta1=d_beta1,
         g_learning_rate=g_learning_rate,
@@ -185,7 +201,7 @@ def _do_fitting(
         observer
 ):
     tf_var = _TensorflowVariable(param, generator, custom_discriminator)
-    batches = dataset.size() // param.data_size_per_batch
+    batches = dataset.batch_size()
     counter = 0
     proxy = _Proxy(sess, param, tf_var)
 
@@ -197,10 +213,13 @@ def _do_fitting(
     start_time = time.time()
 
     for epoch_id in xrange(param.epochs):
-        for batch_id in xrange(0, batches):
+        # for batch_id in xrange(0, batches):
+        #     counter += 1
+        #     batch_images = dataset.batch(batch_id)
+        #     batch_z = np.random.uniform(-1, 1, [param.data_size_per_batch, generator.input_shape[1]]).astype(np.float32)
+        for batch_id, batch_images in enumerate(dataset.batch()):
             counter += 1
-            batch_images = dataset.batch(batch_id)
-            batch_z = np.random.uniform(-1, 1, [param.data_size_per_batch, generator.input_shape[1]]).astype(np.float32)
+            batch_z = np.random.uniform(-1, 1, [dataset.size_per_batch(), generator.input_shape[1]]).astype(np.float32)
 
             # Update D network
             sess.run([tf_var.d_optim], feed_dict={tf_var.images:batch_images, tf_var.z:batch_z, tf_var.is_training:True, K.learning_phase():1})
@@ -415,7 +434,6 @@ class _Parameter():
                  image_shape,
                  working_dir,
                  epochs,
-                 data_size_per_batch,
                  d_learning_rate,
                  d_beta1,
                  g_learning_rate,
@@ -425,7 +443,6 @@ class _Parameter():
         self.image_shape = image_shape
 
         self.epochs = epochs
-        self.data_size_per_batch = data_size_per_batch
 
         self.d_learning_rate=d_learning_rate
         self.d_beta1=d_beta1

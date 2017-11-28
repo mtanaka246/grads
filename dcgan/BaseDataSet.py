@@ -2,11 +2,18 @@
 # BaseDataSet.py
 
 class BaseDataSet(object):
-    def batch(self, batch_id):
+    def batch(self):
         """
-        batch_id で指定されたバッチデータをリストで返す（呼び出し側は正規化済みのデータが帰ることを前提としている）
-        :param batch_id: バッチインデックス 
-        :return: batch_id 番目のバッチデータ
+        バッチデータをリストで返すジェネレータ
+        （呼び出し側は正規化済みのデータが帰ることを前提としている）
+        :return: バッチデータ
+        """
+        raise NotImplementedError()
+
+    def batch_size(self):
+        """
+        1エポックのバッチ数を返す
+        :return: 1エポックのバッチ数
         """
         raise NotImplementedError()
 
@@ -21,5 +28,12 @@ class BaseDataSet(object):
         """
         データのshappe
         :return: (全レコード数, 1データの幅, 高さ, 深さ)のタプル
+        """
+        raise NotImplementedError()
+
+    def size_per_batch(self):
+        """
+        1バッチのデータ数を返す
+        :return: 1バッチのデータ数
         """
         raise NotImplementedError()
