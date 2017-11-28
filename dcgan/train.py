@@ -41,8 +41,8 @@ from BaseDataSet import BaseDataSet
 
 class _ListDataSet(BaseDataSet):
     def __init__(self, dataset, data_size_per_batch):
-        self.dataset = dataset
-        self.data_size_per_batch = data_size_per_batch
+        self._dataset = dataset
+        self._data_size_per_batch = data_size_per_batch
 
     def batch(self):
         """
@@ -53,7 +53,7 @@ class _ListDataSet(BaseDataSet):
         for batch_id in range(self.batch_size()):
             first = batch_id * self.size_per_batch()
             last = first + self.size_per_batch()
-            yield self.dataset[first:last]
+            yield self._dataset[first:last]
 
     def batch_size(self):
         """
@@ -67,21 +67,21 @@ class _ListDataSet(BaseDataSet):
         全データ数を返す
         :return: 全データ数
         """
-        return len(self.dataset)
+        return len(self._dataset)
 
     def shape(self):
         """
         データのタプル
         :return: (全レコード数, 1データの高さ, 幅, 深さ)のタプル
         """
-        return self.dataset.shape
+        return self._dataset.shape
 
     def size_per_batch(self):
         """
         1バッチのデータ数を返す
         :return: 1バッチのデータ数
         """
-        return self.data_size_per_batch
+        return self._data_size_per_batch
 
 def fit(generator,
         dataset,
@@ -125,16 +125,11 @@ def fit_dataset(generator,
         custom_discriminator=None,
         observer=_EmptyObserver()
         ):
-    # print dataset.shape
-
     if (dataset is None) or (dataset.size() == 0):
         raise ValueError("学習データがありません")
 
     if not len(dataset.shape()) == 4:
         raise ValueError("学習データのshapeがシステム仕様を満たしていません : (レコード数, 幅, 高さ,深さ)")
-
-    # if dataset.shape[1] != dataset.shape[2]:
-    #     raise ValueError("学習データは矩形でなければなりません : ({0}, {1})".format(dataset.shape[1], dataset.shape[2]))
 
     param = _Parameter(
         image_shape=dataset.shape()[1:],
@@ -213,10 +208,6 @@ def _do_fitting(
     start_time = time.time()
 
     for epoch_id in xrange(param.epochs):
-        # for batch_id in xrange(0, batches):
-        #     counter += 1
-        #     batch_images = dataset.batch(batch_id)
-        #     batch_z = np.random.uniform(-1, 1, [param.data_size_per_batch, generator.input_shape[1]]).astype(np.float32)
         for batch_id, batch_images in enumerate(dataset.batch()):
             counter += 1
             batch_z = np.random.uniform(-1, 1, [dataset.size_per_batch(), generator.input_shape[1]]).astype(np.float32)

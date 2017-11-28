@@ -16,10 +16,10 @@ class DirectoryImageDataSet(BaseDataSet):
         :param data_size_per_batch: 1バッチのデータ数（ファイル数）
         :param data_shape: データのshape（幅, 高さ, 深さ）
         """
-        self.dir = dir
-        self.data_size_per_batch = data_size_per_batch
-        self.files = _dataset_files(self.dir, ["png"])
-        self.data_shape = (len(self.files),) + data_shape
+        self._dir = dir
+        self._data_size_per_batch = data_size_per_batch
+        self._files = _dataset_files(self._dir, ["png"])
+        self._data_shape = (len(self._files),) + data_shape
 
     def batch(self):
         """
@@ -44,21 +44,21 @@ class DirectoryImageDataSet(BaseDataSet):
         全データ数を返す
         :return: 全データ数
         """
-        return self.data_shape[0]
+        return self._data_shape[0]
 
     def shape(self):
         """
         データのshappe
         :return: (全レコード数, 1データの幅, 高さ, 深さ)のタプル
         """
-        return self.data_shape
+        return self._data_shape
 
     def size_per_batch(self):
         """
         1バッチのデータ数を返す
         :return: 1バッチのデータ数
         """
-        return self.data_size_per_batch
+        return self._data_size_per_batch
 
     def samples(self, ids, normalized):
         """
@@ -66,7 +66,7 @@ class DirectoryImageDataSet(BaseDataSet):
         :param ids: データのインデックス
         :return: データ
         """
-        images = np.array([_imread(file, self.data_shape[-1]) for file in self.files[ids]])
+        images = np.array([_imread(file, self._data_shape[-1]) for file in self._files[ids]])
 
         return self.normalize(images) if normalized else images
 
