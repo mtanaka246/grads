@@ -39,6 +39,7 @@ def exe():
         scipy.misc.imsave(os.path.join(temp_dir, "{0:04}.png".format(i)), image.astype(np.uint8))
 
     data_size_per_batch = 64
+    # データセットクラスの生成
     dataset = DirectoryImageDataSet(temp_dir, data_size_per_batch, images.shape[1:])
     epochs = 25
     working_dir = "./temp"
