@@ -45,8 +45,7 @@ def exe():
     sample_img_row_col = [8, 8]
     rollback_check_point_cycle = 200
 
-    with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess,\
-            _LogWriter(working_dir) as writer:
+    with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess, _LogWriter(working_dir) as writer:
         K.set_session(sess)
 
         # 学習
@@ -86,6 +85,9 @@ def _denormalize_img_dataset(dataset):
 
 class _LogWriter:
     def __init__(self, parent_dir):
+        if not os.path.exists(parent_dir):
+            os.makedirs(parent_dir)
+
         self._parent_dir = parent_dir
 
     def __enter__(self):

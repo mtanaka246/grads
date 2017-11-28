@@ -6,6 +6,8 @@ from dcgan.BaseObserver import BaseObserver
 from keras.datasets import cifar10
 import numpy as np
 import os
+import tensorflow as tf
+from keras import backend as K
 # import scipy.misc
 
 
@@ -37,28 +39,29 @@ def exe():
     data_size_per_batch = 64
     working_dir = "./temp"
 
-    # 学習
-    # （注）システムは内部で "working_dir" 以下に専用のディレクトリを生成し、そこに一時ファイルを生成する
-    # fit()が正常に終了する場合、このディレクトリは削除される
-    # しかし外部から強制終了した場合、その動作は未定義である
-    # また、このディレクトリがすでに存在していた場合（システム内で定義された名前のディレクトリがすでに存在している場合）
-    # 一時ファイルおよびそのディレクトリは削除されない
-    train.fit(
-        generator,
-        dataset,
-        epochs=epochs,  # エポック数
-        data_size_per_batch=data_size_per_batch,  # ミニバッチのデータ数
-        d_learning_rate=2.0e-4,  # Discriminator の学習率係数
-        d_beta1=0.5,  # Discriminator の beta
-        g_learning_rate=2.0e-4,  # Generator の学習率係数
-        g_beta1=0.5,  # Generator の beta
-        working_dir=working_dir,  # 作業ディレクトリ（存在しない場合は、自動的に生成される）
-        rollback_check_point_cycle=200, # 200バッチ毎にロールバック用のチェックポイントを作成
-        observer=_CustumObserver(epochs, len(dataset) // data_size_per_batch, working_dir)
-    )
-
-    # Generator の保存
-    generator.save(os.path.join(working_dir, "generator.h5"))
+    with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
+        K.set_session(sess)
+        # 学習
+        # （注）システムは内部で "working_dir" 以下に専用のディレクトリを生成し、そこに一時ファイルを生成する
+        # fit()が正常に終了する場合、このディレクトリは削除される
+        # しかし外部から強制終了した場合、その動作は未定義である
+        # また、このディレクトリがすでに存在していた場合（システム内で定義された名前のディレクトリがすでに存在している場合）
+        # 一時ファイルおよびそのディレクトリは削除されない
+        train.fit(
+            generator,
+            dataset,
+            epochs=epochs,  # エポック数
+            data_size_per_batch=data_size_per_batch,  # ミニバッチのデータ数
+            d_learning_rate=2.0e-4,  # Discriminator の学習率係数
+            d_beta1=0.5,  # Discriminator の beta
+            g_learning_rate=2.0e-4,  # Generator の学習率係数
+            g_beta1=0.5,  # Generator の beta
+            working_dir=working_dir,  # 作業ディレクトリ（存在しない場合は、自動的に生成される）
+            rollback_check_point_cycle=200, # 200バッチ毎にロールバック用のチェックポイントを作成
+            observer=_CustumObserver(epochs, len(dataset) // data_size_per_batch, working_dir)
+        )
+        # Generator の保存
+        generator.save(os.path.join(working_dir, "generator.h5"))
 
 
 class _CustumObserver(BaseObserver):

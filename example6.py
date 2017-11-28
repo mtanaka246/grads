@@ -2,8 +2,10 @@
 # example6.py
 
 from keras.datasets import cifar10
+from keras import backend as K
 from dcgan import train
 import numpy as np
+import tensorflow as tf
 
 
 def exe():
@@ -24,11 +26,12 @@ def exe():
     # -1.0 ～ 1.0 に正規化
     dataset = (dataset - 127.5) / 127.5
 
-    # 学習
-    train.fit(generator, dataset, custom_discriminator=_create_discriminator)
-
-    # Generator の保存
-    generator.save("generator.h5")
+    with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
+        K.set_session(sess)
+        # 学習
+        train.fit(generator, dataset, custom_discriminator=_create_discriminator)
+        # Generator の保存
+        generator.save("generator.h5")
 
 
 def _create_keras_generator():
@@ -100,6 +103,10 @@ def _create_discriminator(input, is_training, reuse=False):
 
     name = "custum_discriminator"
 
+    # 参考URL
+    # http://bamos.github.io/2016/08/09/deep-completion/#ml-heavy-dcgans-in-tensorflow
+    # https://github.com/bamos/dcgan-completion.tensorflow/blob/master/model.py
+
     with tf.variable_scope(name, reuse=reuse) as scope:
         def conv2d(input, output_dim, name):
             with tf.variable_scope(name):
@@ -165,4 +172,3 @@ def _create_discriminator(input, is_training, reuse=False):
     t_vars = tf.trainable_variables()
 
     return tf.nn.sigmoid(h4), h4, [var for var in t_vars if var.name.startswith(name)]
-

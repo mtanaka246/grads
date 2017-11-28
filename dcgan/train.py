@@ -35,6 +35,37 @@ class _EmptyObserver(BaseObserver):
         """
         return True
 
+
+from BaseDataSet import BaseDataSet
+
+
+class _ListDataSet(BaseDataSet):
+    def __init__(self, dataset, data_size_per_batch):
+        self.dataset = dataset
+        self.data_size_per_batch = data_size_per_batch
+
+    def batch(self, batch_id):
+        """
+        batch_id で指定されたバッチデータをリストで返す（呼び出し側は正規化済みのデータが帰ることを前提としている）
+        :param batch_id: バッチインデックス 
+        :return: batch_id 番目のバッチデータ
+        """
+        return self.dataset[batch_id * self.data_size_per_batch: (batch_id + 1) * self.data_size_per_batch]
+
+    def size(self):
+        """
+        全データ数を返す
+        :return: 全データ数
+        """
+        return len(self.dataset)
+
+    def shape(self):
+        """
+        データのタプル
+        :return: (全レコード数, 1データの高さ, 幅, 深さ)のタプル
+        """
+        return self.dataset.shape
+
 def fit(generator,
         dataset,
         epochs=25,
@@ -48,22 +79,51 @@ def fit(generator,
         custom_discriminator=None,
         observer=_EmptyObserver()
         ):
+    if not len(dataset.shape) == 4:
+        raise ValueError("学習データのshapeがシステム仕様を満たしていません : (レコード数, 幅, 高さ,深さ)")
+
+    fit_dataset(
+        generator,
+        _ListDataSet(dataset, data_size_per_batch),
+        epochs=epochs,
+        d_learning_rate = d_learning_rate,
+        d_beta1 = d_beta1,
+        g_learning_rate = g_learning_rate,
+        g_beta1=g_beta1,
+        rollback_check_point_cycle=rollback_check_point_cycle,
+        working_dir = working_dir,
+        custom_discriminator=custom_discriminator,
+        observer=observer
+    )
+
+def fit_dataset(generator,
+        dataset,
+        epochs=25,
+        d_learning_rate = 2.0e-4,
+        d_beta1 = 0.5,
+        g_learning_rate = 2.0e-4,
+        g_beta1=0.5,
+        rollback_check_point_cycle=500,
+        working_dir = "./",
+        custom_discriminator=None,
+        observer=_EmptyObserver()
+        ):
     # print dataset.shape
 
-    if (dataset is None) or (dataset.shape[0] == 0):
+    if (dataset is None) or (dataset.size() == 0):
         raise ValueError("学習データがありません")
 
-    if not len(dataset.shape) == 4:
+    if not len(dataset.shape()) == 4:
         raise ValueError("学習データのshapeがシステム仕様を満たしていません : (レコード数, 幅, 高さ,深さ)")
 
     # if dataset.shape[1] != dataset.shape[2]:
     #     raise ValueError("学習データは矩形でなければなりません : ({0}, {1})".format(dataset.shape[1], dataset.shape[2]))
 
     param = _Parameter(
-        image_shape=[dataset.shape[1], dataset.shape[2], dataset.shape[3]],
+        image_shape=dataset.shape()[1:],
         working_dir=working_dir,
         epochs=epochs,
-        data_size_per_batch=data_size_per_batch,
+        data_size_per_batch=dataset.data_size_per_batch,
         d_learning_rate=d_learning_rate,
         d_beta1=d_beta1,
         g_learning_rate=g_learning_rate,
@@ -97,6 +157,7 @@ def fit(generator,
     # 一時ファイルの出力用ディレクトリの削除
     _delete_checkpoint_dir(param, delete_flg)
 
+
 def _create_checkpoint_dir(param):
     if not os.path.exists(param.checkpoint_dir):
         os.makedirs(param.checkpoint_dir)
@@ -124,7 +185,7 @@ def _do_fitting(
         observer
 ):
     tf_var = _TensorflowVariable(param, generator, custom_discriminator)
-    batches = dataset.shape[0] // param.data_size_per_batch
+    batches = dataset.size() // param.data_size_per_batch
     counter = 0
     proxy = _Proxy(sess, param, tf_var)
 
@@ -138,7 +199,7 @@ def _do_fitting(
     for epoch_id in xrange(param.epochs):
         for batch_id in xrange(0, batches):
             counter += 1
-            batch_images = dataset[batch_id * param.data_size_per_batch : (batch_id + 1) * param.data_size_per_batch]
+            batch_images = dataset.batch(batch_id)
             batch_z = np.random.uniform(-1, 1, [param.data_size_per_batch, generator.input_shape[1]]).astype(np.float32)
 
             # Update D network
@@ -388,7 +449,7 @@ class _Parameter():
 class _TensorflowVariable:
     def __init__(self, param, generator, custom_discriminator):
         self.is_training = tf.placeholder(tf.bool, name=_is_training_name)
-        self.images = tf.placeholder(tf.float32, [None] + param.image_shape, name=_images_name)
+        self.images = tf.placeholder(tf.float32, [None] + list(param.image_shape), name=_images_name)
         self.z = tf.placeholder(tf.float32, [None, generator.input_shape[1]], name=_z_name)
 
         self.G = generator(self.z)

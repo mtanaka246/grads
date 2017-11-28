@@ -2,8 +2,10 @@
 # example7.py
 
 from keras.datasets import cifar10
+from keras import backend as K
 from dcgan import train
 import numpy as np
+import tensorflow as tf
 
 
 def exe():
@@ -24,11 +26,12 @@ def exe():
     # -1.0 ～ 1.0 に正規化
     dataset = (dataset - 127.5) / 127.5
 
-    # 学習
-    train.fit(generator, dataset, custom_discriminator=custom_discriminator())
-
-    # Generator の保存
-    generator.save("generator.h5")
+    with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
+        K.set_session(sess)
+        # 学習
+        train.fit(generator, dataset, custom_discriminator=custom_discriminator())
+        # Generator の保存
+        generator.save("generator.h5")
 
 
 def _create_keras_generator():

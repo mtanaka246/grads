@@ -1,1 +1,1 @@
-__all__ = ["train", "BaseObserver", "FeatureModel"]
+__all__ = ["train", "BaseObserver", "FeatureModel", "BaseDataSet", "DirectoryImageDataSet"]

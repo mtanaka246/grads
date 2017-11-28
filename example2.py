@@ -4,6 +4,8 @@
 from keras.datasets import cifar10
 from dcgan import train
 import numpy as np
+import tensorflow as tf
+from keras import backend as K
 
 def exe():
     """
@@ -25,25 +27,27 @@ def exe():
     # -1.0 ～ 1.0 に正規化
     dataset = (dataset - 127.5) / 127.5
 
-    # 学習
-    # （注）システムは内部で "working_dir" 以下に専用のディレクトリを生成し、そこに一時ファイルを生成する
-    # fit()が正常に終了する場合、このディレクトリは削除される
-    # しかし外部から強制終了した場合、その動作は未定義である
-    # また、このディレクトリがすでに存在していた場合（システム内で定義された名前のディレクトリがすでに存在している場合）
-    # 一時ファイルおよびそのディレクトリは削除されない
-    train.fit(
-        generator,
-        dataset,
-        epochs=25, # エポック数
-        data_size_per_batch=64, # ミニバッチのデータ数
-        d_learning_rate=2.0e-4, # Discriminator の学習率係数
-        d_beta1=0.5, # Discriminator の beta
-        g_learning_rate=2.0e-4, # Generator の学習率係数
-        g_beta1=0.5 # Generator の beta
-    )
+    with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
+        K.set_session(sess)
+        # 学習
+        # （注）システムは内部で "working_dir" 以下に専用のディレクトリを生成し、そこに一時ファイルを生成する
+        # fit()が正常に終了する場合、このディレクトリは削除される
+        # しかし外部から強制終了した場合、その動作は未定義である
+        # また、このディレクトリがすでに存在していた場合（システム内で定義された名前のディレクトリがすでに存在している場合）
+        # 一時ファイルおよびそのディレクトリは削除されない
+        train.fit(
+            generator,
+            dataset,
+            epochs=25, # エポック数
+            data_size_per_batch=64, # ミニバッチのデータ数
+            d_learning_rate=2.0e-4, # Discriminator の学習率係数
+            d_beta1=0.5, # Discriminator の beta
+            g_learning_rate=2.0e-4, # Generator の学習率係数
+            g_beta1=0.5 # Generator の beta
+        )
 
-    # Generator の保存
-    generator.save("./temp/generator.h5")
+        # Generator の保存
+        generator.save("./generator.h5")
 
 def _create_keras_generator():
     from keras.models import Sequential

@@ -1,75 +1,128 @@
 # -*- coding: utf-8 -*-
-# example3.py
+# example8.py
 
+from keras.datasets import cifar10
+from keras import backend as K
 from dcgan import train
 from dcgan.BaseObserver import BaseObserver
-from keras.datasets import cifar10
+from dcgan.DirectoryImageDataSet import DirectoryImageDataSet
 import numpy as np
-import os
-import scipy.misc
 import tensorflow as tf
-from keras import backend as K
+import os
 
 def exe():
     """
-    Observerを使用した実装例①
+    Discriminator を独自に定義するための実装例
 
-    Keras で Generator を定義し、
-    エポック数、バッチサイズ、学習率、β、作業ディレクトを設定して、
-    CIFAR 10 の犬の画像を用いて学習を行う
-    
-    Observer は学習の進捗を確認するために使用する（_CustumObserver.on_completed_batch_train()を参照）
-    　・ミニバッチ処理後にlossの値をコンソールに出力
-    　　（例）Epoch: [  1/ 25] [  50 /  50] time: 00:00:32.986, d_loss: 2.80770445, g_loss: 0.46044752, counter: 50
-    　・作業ディレクトリにサンプル画像を出力する
+    Keras で Generator を定義し、CIFAR 10 の犬の画像を用いて学習を行う
 
     :return: None
     """
-
     # Generator の生成（Kerasで定義すること）
     generator = _create_keras_generator()
 
     # cifar10のデータのロード
     (x_train, y_train), (_, _) = cifar10.load_data()
     # 犬画像の抽出
-    dataset = np.array([x for (x, y) in zip(x_train, y_train) if y == 5])
-    # -1.0 ～ 1.0 に正規化
-    dataset = (dataset - 127.5) / 127.5
+    images = np.array([x for (x, y) in zip(x_train, y_train) if y == 5])
 
-    epochs = 25
+    # 犬画像をデモ用ディレクトリに保存
+    temp_dir = "./example8"
+
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    for i, image in enumerate(images):
+        import scipy
+
+        # 生成した画像をファイルに保存
+        scipy.misc.imsave(os.path.join(temp_dir, "{0:04}.png".format(i)), image.astype(np.uint8))
+
     data_size_per_batch = 64
+    dataset = DirectoryImageDataSet(temp_dir, data_size_per_batch, images.shape[1:])
+    epochs = 25
     working_dir = "./temp"
     sample_img_row_col = [8, 8]
 
     with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
         K.set_session(sess)
         # 学習
-        # （注）システムは内部で "working_dir" 以下に専用のディレクトリを生成し、そこに一時ファイルを生成する
-        # fit()が正常に終了する場合、このディレクトリは削除される
-        # しかし外部から強制終了した場合、その動作は未定義である
-        # また、このディレクトリがすでに存在していた場合（システム内で定義された名前のディレクトリがすでに存在している場合）
-        # 一時ファイルおよびそのディレクトリは削除されない
-        train.fit(
+        train.fit_dataset(
             generator,
             dataset,
-            epochs=epochs,  # エポック数
-            data_size_per_batch=data_size_per_batch,  # ミニバッチのデータ数
-            d_learning_rate=2.0e-4,  # Discriminator の学習率係数
-            d_beta1=0.5,  # Discriminator の beta
-            g_learning_rate=2.0e-4,  # Generator の学習率係数
-            g_beta1=0.5,  # Generator の beta
-            working_dir=working_dir,  # 作業ディレクトリ（存在しない場合は、自動的に生成される）
+            epochs=epochs,
+            working_dir=working_dir,
             observer=_CustumObserver(
                 epochs,  # エポック数
-                len(dataset) // data_size_per_batch,  # バッチ数
-                dataset[0:sample_img_row_col[0] * sample_img_row_col[1]],
+                dataset.size() // data_size_per_batch,  # バッチ数
+                dataset.samples(range(sample_img_row_col[0] * sample_img_row_col[1]), True),
                 sample_img_row_col,
                 working_dir
             )
         )
-
         # Generator の保存
         generator.save(os.path.join(working_dir, "generator.h5"))
+
+    # デモ用ディレクトリを削除
+    import shutil
+    shutil.rmtree(temp_dir)
+
+def _create_keras_generator():
+    from keras.models import Sequential
+    from keras.layers import Dense, Reshape, Activation
+    from keras.layers.convolutional import Conv2DTranspose
+    from keras import initializers
+
+    w = 2
+    h = 2
+    size = 64
+
+    model = Sequential()
+
+    model.add(Dense(units=w * h * size * 8, input_dim=100))  # 1
+    model.add(Reshape((w, h, size * 8)))  # 2
+    model.add(Activation('relu'))  # 3
+    # shape : (2, 2, 512)
+
+    model.add(Conv2DTranspose(
+        size * 8,
+        (5, 5),
+        strides=(2, 2),
+        padding='same',
+        kernel_initializer=initializers.random_normal(stddev=0.02)))  # 4
+    model.add(Activation('relu'))  # 6
+    # shape : (4, 4, 512)
+
+    model.add(Conv2DTranspose(
+        size * 4,
+        (5, 5),
+        strides=(2, 2),
+        padding='same',
+        kernel_initializer=initializers.random_normal(stddev=0.02)))  # 7
+    model.add(Activation('relu'))  # 8
+    # shape : (8, 8, 256)
+
+    model.add(Conv2DTranspose(
+        size * 2,
+        (5, 5),
+        strides=(2, 2),
+        padding='same',
+        kernel_initializer=initializers.random_normal(stddev=0.02)))  # 9
+    model.add(Activation('relu'))  # 10
+    # shape : (16, 16, 128)
+
+    model.add(Conv2DTranspose(
+        3,
+        (5, 5),
+        strides=(2, 2),
+        padding='same',
+        kernel_initializer=initializers.random_normal(stddev=0.02)))  # 11
+    model.add(Activation('tanh'))  # 12
+    # shape : (32, 32, 3)
+
+    # model.summary()
+
+    return model
 
 class _CustumObserver(BaseObserver):
     def __init__(self, epochs, batches, sample_images, sample_img_row_col, working_dir):
@@ -140,6 +193,8 @@ class _CustumObserver(BaseObserver):
 
             print image_path
 
+            import scipy
+
             # 生成した画像をファイルに保存
             scipy.misc.imsave(image_path, images.astype(np.uint8))
 
@@ -157,59 +212,3 @@ class _CustumObserver(BaseObserver):
         """
         return True
 
-def _create_keras_generator():
-    from keras.models import Sequential
-    from keras.layers import Dense, Reshape, Activation
-    from keras.layers.convolutional import Conv2DTranspose
-    from keras import initializers
-
-    w = 2
-    h = 2
-    size = 64
-
-    model = Sequential()
-
-    model.add(Dense(units=w * h * size * 8, input_dim=100))  # 1
-    model.add(Reshape((w, h, size * 8)))  # 2
-    model.add(Activation('relu'))  # 3
-    # shape : (2, 2, 512)
-
-    model.add(Conv2DTranspose(
-        size * 8,
-        (5, 5),
-        strides=(2, 2),
-        padding='same',
-        kernel_initializer=initializers.random_normal(stddev=0.02)))  # 4
-    model.add(Activation('relu'))  # 6
-    # shape : (4, 4, 512)
-
-    model.add(Conv2DTranspose(
-        size * 4,
-        (5, 5),
-        strides=(2, 2),
-        padding='same',
-        kernel_initializer=initializers.random_normal(stddev=0.02)))  # 7
-    model.add(Activation('relu'))  # 8
-    # shape : (8, 8, 256)
-
-    model.add(Conv2DTranspose(
-        size * 2,
-        (5, 5),
-        strides=(2, 2),
-        padding='same',
-        kernel_initializer=initializers.random_normal(stddev=0.02)))  # 9
-    model.add(Activation('relu'))  # 10
-    # shape : (16, 16, 128)
-
-    model.add(Conv2DTranspose(
-        3,
-        (5, 5),
-        strides=(2, 2),
-        padding='same',
-        kernel_initializer=initializers.random_normal(stddev=0.02)))  # 11
-    model.add(Activation('tanh'))  # 12
-    # shape : (32, 32, 3)
-
-    # model.summary()
-
-    return model
