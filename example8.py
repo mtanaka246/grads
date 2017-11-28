@@ -55,7 +55,7 @@ def exe():
             working_dir=working_dir,
             observer=_CustumObserver(
                 epochs,  # エポック数
-                dataset.size() // data_size_per_batch,  # バッチ数
+                dataset.batch_size(),
                 dataset.samples(range(sample_img_row_col[0] * sample_img_row_col[1]), True),
                 sample_img_row_col,
                 working_dir
