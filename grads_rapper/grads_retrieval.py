@@ -3,6 +3,7 @@
 
 import pandas as pd
 import numpy as np
+import math
 from datetime import datetime as dt
 from _widget.GrADS import GrADS
 from _widget.Vector2D import Vector2D
@@ -83,7 +84,7 @@ def create_temp_map(date, depth, lon_min, lat_min, lon_max, lat_max, pitch, grad
     :return: 海水温情報のDataFrame
     """
     def _calc_size(v1, v2, pitch):
-        return ((v2 - v1) / pitch)
+        return math.ceil((v2 - v1) / pitch)
 
     def _calc_middle(v1, v2):
         return (v1 + v2) / 2.0

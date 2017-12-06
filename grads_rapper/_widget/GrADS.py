@@ -47,7 +47,7 @@ class GrADS:
             return str(date.day) + date.strftime('%b').lower() + str(date.year)
 
         # GrADSの戻り値で領域の終端側境界にゴミが含まれることがあるので、領域を大きくして検索し、その分を最終結果から削除する
-        offset_degree = 1.0  # 上記の拡大領域分
+        offset_degree = self._pitch * 10.0  # 上記の拡大領域分
 
         # print("set lat {0}".format(_toRange(pos_date.pos.y, self._offset.y, offset_degree)))
         # print("set lon {0}".format(_toRange(pos_date.pos.x, self._offset.x, offset_degree)))
@@ -64,7 +64,7 @@ class GrADS:
         self._ga('define x=' + self._fn)
         ret = self._ga.exp('x')
 
-        n = int(offset_degree / self._pitch if (self._pitch < offset_degree) else self._pitch)
+        n = int((offset_degree / self._pitch) if (self._pitch < offset_degree) else self._pitch)
         ret = ret[1:ret.shape[0] - n, 1:ret.shape[1] - n]
 
         assert ret.shape == (self._ret_shape.x, self._ret_shape.y), "{0} != {1}".format(ret.shape, (self._ret_shape.x, self._ret_shape.y))
