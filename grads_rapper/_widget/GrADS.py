@@ -21,7 +21,7 @@ class GrADS:
         )
         self._ret_shape = ret_shape
         self._pitch = pitch
-        self._offset = Vector2D(ret_shape.x * pitch / 2, ret_shape.y * pitch / 2)
+        self._offset = Vector2D(ret_shape.y * pitch / 2, ret_shape.x * pitch / 2)
 
     def __enter__(self):
         self._current_dir = os.getcwd()
@@ -67,7 +67,7 @@ class GrADS:
         n = int(offset_degree / self._pitch if (self._pitch < offset_degree) else self._pitch)
         ret = ret[1:ret.shape[0] - n, 1:ret.shape[1] - n]
 
-        assert ret.shape == (self._ret_shape.x, self._ret_shape.y)
+        assert ret.shape == (self._ret_shape.x, self._ret_shape.y), "{0} != {1}".format(ret.shape, (self._ret_shape.x, self._ret_shape.y))
 
         return ret
 
