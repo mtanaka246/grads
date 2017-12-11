@@ -1,33 +1,19 @@
-<<<<<<< HEAD
-# example1.py
 # -*- coding: utf-8 -*-
-
-from grads_rapper.grads_retrieval import build_temp_64_64_with_file
-
-def exe():
-    # 例① build_temp_64_64_with_file()
-    # ファイルで指定された情報から海水温を取得し、ファイルに出力
-    build_temp_64_64_with_file(
-        "input.csv",  # 'date', 'lat', 'lon', 'depth' で日付と座標が記されたCSVファイル（「index_col無し」を前提）
-        '/mnt/seadata/ts.ctl',  # GrADSのファイル
-        "output.csv"  # 出力先パス
-    )
-=======
-# -*- coding: utf-8 -*-
-# example1.py
+# example7.py
 
 from keras.datasets import cifar10
+from keras import backend as K
 from dcgan import train
 import numpy as np
 import tensorflow as tf
-from keras import backend as K
+
 
 def exe():
     """
-    最も簡単な実装例 
-    
+    Discriminator を独自に定義するための実装例
+
     Keras で Generator を定義し、CIFAR 10 の犬の画像を用いて学習を行う
-    
+
     :return: None
     """
     # Generator の生成（Kerasで定義すること）
@@ -43,15 +29,10 @@ def exe():
     with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
         K.set_session(sess)
         # 学習
-        # （注）システムは内部でカレントディレクトリ以下に専用のディレクトリを生成し、そこに一時ファイルを生成する
-        # fit()が正常に終了する場合、このディレクトリは削除される
-        # しかし外部から強制終了した場合、その動作は未定義である
-        # また、このディレクトリがすでに存在していた場合（システム内で定義された名前のディレクトリがすでに存在している場合）
-        # 一時ファイルおよびそのディレクトリは削除されない
-        train.fit(generator, dataset)
-
+        train.fit(generator, dataset, custom_discriminator=custom_discriminator())
         # Generator の保存
         generator.save("generator.h5")
+
 
 def _create_keras_generator():
     from keras.models import Sequential
@@ -61,7 +42,7 @@ def _create_keras_generator():
 
     w = 2
     h = 2
-    size =  64
+    size = 64
 
     model = Sequential()
 
@@ -109,4 +90,37 @@ def _create_keras_generator():
     # model.summary()
 
     return model
->>>>>>> 984c959d728b369ea5b0a02739a37357a4020080
+
+
+class custom_discriminator:
+    def __init__(self):
+        from keras.layers import Input, Dense, Conv2D
+        from keras.layers.core import Flatten
+        from keras.layers.normalization import BatchNormalization
+        from keras.models import Model
+
+        inputs = Input((32, 32, 3), name="input")
+        x = Conv2D(64, (5, 5), strides=(2, 2), activation='relu', padding="same", name="conv2d_0")(inputs)
+        x = Conv2D(128, (5, 5), strides=(2, 2), activation='relu', padding="same", name="conv2d_1")(x)
+        x = BatchNormalization(name="bn_1")(x)
+        x = Conv2D(256, (5, 5), strides=(2, 2), activation='relu', padding="same", name="conv2d_2")(x)
+        x = BatchNormalization(name="bn_2")(x)
+        x = Conv2D(512, (5, 5), strides=(2, 2), activation='relu', padding="same", name="conv2d_3")(x)
+        x = BatchNormalization(name="bn_3")(x)
+        x = Flatten()(x)
+        x = Dense(1, name="dense_4")(x)
+        self.model = Model(inputs=inputs, outputs=x, name="custom_discriminator")
+
+    def __call__(self, *args, **kwargs):
+        from keras.layers import Activation
+
+        input = args[0]
+        # is_training = args[1]
+        # reuse = kwargs["reuse"]
+
+        d_logits = self.model(input)
+
+        # print model.trainable_weights
+
+        return Activation("sigmoid")(d_logits), d_logits, self.model.trainable_weights
+

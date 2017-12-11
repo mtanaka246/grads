@@ -1,40 +1,27 @@
-<<<<<<< HEAD
-# example3.py
 # -*- coding: utf-8 -*-
-
-from grads_rapper.grads_retrieval import create_temp_map
-
-def exe():
-    df = create_temp_map('1999/6/1', 100, 147.0, 35.0, 198.0, 47.0, 0.1, '/mnt/seadata/ts.ctl')
-
-    print df
-
-=======
-# -*- coding: utf-8 -*-
-# example3.py
+# example4.py
 
 from dcgan import train
 from dcgan.BaseObserver import BaseObserver
 from keras.datasets import cifar10
 import numpy as np
 import os
-import scipy.misc
 import tensorflow as tf
 from keras import backend as K
+# import scipy.misc
+
 
 def exe():
     """
-    Observerを使用した実装例①
+    Observerを使用した実装例②
 
     Keras で Generator を定義し、
     エポック数、バッチサイズ、学習率、β、作業ディレクトを設定して、
     CIFAR 10 の犬の画像を用いて学習を行う
-    
-    Observer は学習の進捗を確認するために使用する（_CustumObserver.on_completed_batch_train()を参照）
-    　・ミニバッチ処理後にlossの値をコンソールに出力
-    　　（例）Epoch: [  1/ 25] [  50 /  50] time: 00:00:32.986, d_loss: 2.80770445, g_loss: 0.46044752, counter: 50
-    　・作業ディレクトリにサンプル画像を出力する
 
+    Observer は学習時に Generator の破損を検出し、復元ポイントにロールバックするために用いる
+    （_CustumObserver.on_completed_batch_train()を参照）
+    
     :return: None
     """
 
@@ -51,7 +38,6 @@ def exe():
     epochs = 25
     data_size_per_batch = 64
     working_dir = "./temp"
-    sample_img_row_col = [8, 8]
 
     with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
         K.set_session(sess)
@@ -71,27 +57,22 @@ def exe():
             g_learning_rate=2.0e-4,  # Generator の学習率係数
             g_beta1=0.5,  # Generator の beta
             working_dir=working_dir,  # 作業ディレクトリ（存在しない場合は、自動的に生成される）
-            observer=_CustumObserver(
-                epochs,  # エポック数
-                len(dataset) // data_size_per_batch,  # バッチ数
-                dataset[0:sample_img_row_col[0] * sample_img_row_col[1]],
-                sample_img_row_col,
-                working_dir
-            )
+            rollback_check_point_cycle=200, # 200バッチ毎にロールバック用のチェックポイントを作成
+            observer=_CustumObserver(epochs, len(dataset) // data_size_per_batch, working_dir)
         )
-
         # Generator の保存
         generator.save(os.path.join(working_dir, "generator.h5"))
 
+
 class _CustumObserver(BaseObserver):
-    def __init__(self, epochs, batches, sample_images, sample_img_row_col, working_dir):
+    def __init__(self, epochs, batches, working_dir):
         self.epochs = epochs
         self.batches = batches
         self.working_dir = working_dir
 
-        self.sample_z = np.random.uniform(-1, 1, size=(len(sample_images), 100))
-        self.sample_images = sample_images
-        self.sample_img_row_col = sample_img_row_col
+        self.g_loss_moving_avg = 0.0
+        self.g_loss_moving_avg_counter = 0
+        self.last_check_point = None
 
     def on_completed_batch_train(self, proxy, epoch_id, batch_id, counter, g_loss, d_loss, elapsed_time):
         """
@@ -105,55 +86,38 @@ class _CustumObserver(BaseObserver):
         :param elapsed_time: 経過時間
         :return: True : 学習を継続, False : 学習を中止
         """
-        # コンソールに出力
-        # （例）Epoch: [  1/ 25] [  50 /  50] time: 00:00:32.986, d_loss: 2.80770445, g_loss: 0.46044752, counter: 50
-        print "Epoch: [{0}] [{1}] time: {2}, {3}, {4}, {5}".format(
-            "{0:3d}/{1:3d}".format(epoch_id + 1, self.epochs),
-            "{0:4d}/{1:4d}".format(batch_id + 1, self.batches),
-            "{0:02.0f}:{1:02.0f}:{2:02.3f}".format(elapsed_time // 3600, elapsed_time // 60 % 60, elapsed_time % 60),
-            "d_loss: {0:.8f}".format(d_loss),
-            "g_loss: {0:.8f}".format(g_loss),
-            "counter: {0:1d}".format(counter)
-        )
+        self.g_loss_moving_avg_counter += 1
+        n = min(self.g_loss_moving_avg_counter, 10)
+        self.g_loss_moving_avg = ((n - 1) * self.g_loss_moving_avg + g_loss) / n
 
-        # 10バッチ毎にサンプル画像を出力
-        if np.mod(counter, 10) == 0:
-            # サンプル画像の生成
-            images, d_loss, g_loss = proxy.create_sample_imgages(self.sample_z, self.sample_images)
+        # 3回目のエポック以降に Generator ロスの10バッチ移動平均が4.0を超えた場合にロールバックを実行
+        if (epoch_id > 2) and (n == 10) and (self.g_loss_moving_avg > 4.0):
+            # ロールバックを実行
+            check_point = proxy.rollback()
 
-            def _merge(images, size):
-                h, w = images.shape[1], images.shape[2]
-                img = np.zeros((int(h * size[0]), int(w * size[1]), images.shape[3]))
-                for idx, image in enumerate(images):
-                    i = idx % size[1]
-                    j = idx // size[1]
-                    img[j * h:j * h + h, i * w:i * w + w, :] = image
-
-                return img
-
-            assert (self.sample_img_row_col[0] * self.sample_img_row_col[1]) == len(images),\
-                "画像の枚数が一致しない : on_sampling_image()"
-
-            # 画像を 0 ～ 255 に戻す
-            images = (images + 1.0) * 127.5
-            # サンプル画像を1枚の画像にマージ
-            images = _merge(images, self.sample_img_row_col)
-
-            # ファイルの保存先へのパス
-            image_path = os.path.join(
-                self.working_dir,
-                'train_{0:02d}_{1:04d}_{2:06d}_d_loss{{{3:.4f}}}_g_loss{{{4:.4f}}}.png'.format(
-                    epoch_id + 1,
-                    batch_id + 1,
-                    counter,
-                    d_loss,
-                    g_loss)
-            )
-
-            print image_path
-
-            # 生成した画像をファイルに保存
-            scipy.misc.imsave(image_path, images.astype(np.uint8))
+            if check_point == None:
+                print "{0} : {1}, {2}".format(
+                    "チェックポイントが存在しないことによりロールバックに失敗したため、学習を終了",
+                    "(d_loss, g_loss, mean(g_loss)) = ({0}, {1}, {2})".format(d_loss, g_loss, self.g_loss_moving_avg),
+                    "counter = {0}".format(counter)
+                )
+                return False
+            elif check_point == self.last_check_point:
+                print "{0} : {1}, {2}".format(
+                    "前回と同じチェックポイントにロールバックしたため、学習を終了",
+                    "(d_loss, g_loss, mean(g_loss)) = ({0}, {1}, {2})".format(d_loss, g_loss, self.g_loss_moving_avg),
+                    "counter = {0}".format(counter)
+                )
+                return False
+            else:
+                self.last_check_point = check_point
+                print "{0} : {1}, {2}".format(
+                    "ロールバックを実行",
+                    "(d_loss, g_loss, mean(g_loss)) = ({0}, {1}, {2})".format(d_loss, g_loss, self.g_loss_moving_avg),
+                    "counter = {0}".format(counter)
+                )
+                self.g_loss_moving_avg = 0.0
+                self.g_loss_moving_avg_counter = 0
 
         return True
 
@@ -168,6 +132,7 @@ class _CustumObserver(BaseObserver):
         :return: True : 学習を継続, False : 学習を中止
         """
         return True
+
 
 def _create_keras_generator():
     from keras.models import Sequential
@@ -225,4 +190,3 @@ def _create_keras_generator():
     # model.summary()
 
     return model
->>>>>>> 984c959d728b369ea5b0a02739a37357a4020080
