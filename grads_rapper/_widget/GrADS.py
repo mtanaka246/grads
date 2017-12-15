@@ -21,7 +21,8 @@ class GrADS:
         )
         self._ret_shape = ret_shape
         self._pitch = pitch
-        self._offset = Vector2D(ret_shape.y * pitch / 2, ret_shape.x * pitch / 2)
+        # 領域中心から境界までの距離（°）
+        self._half_dist = Vector2D(ret_shape.y * pitch / 2, ret_shape.x * pitch / 2)
 
     def __enter__(self):
         self._current_dir = os.getcwd()
@@ -41,22 +42,23 @@ class GrADS:
 
     def read(self, pos_date):
         def _toRange(dat, offset, offset_degree):
-            return str(dat - offset) + " " + str(dat + (offset + offset_degree))
+            return str(dat - (offset + offset_degree)) + " " + str(dat + (offset + offset_degree))
 
         def _toFormattedDate(date):
             return str(date.day) + date.strftime('%b').lower() + str(date.year)
 
-        # GrADSの戻り値で領域の終端側境界にゴミが含まれることがあるので、領域を大きくして検索し、その分を最終結果から削除する
-        offset_degree = self._pitch * 10.0  # 上記の拡大領域分
+        # GrADSの戻り値で領域の終端側境界にゴミが含まれることがあるので、検索領域全体を拡大して、その分を最終結果から削除する
+        n = 10 # 拡大する要素数
+        offset_degree = self._pitch * n  # 要素数から拡大領域を計算 - 1°= 0.1° * 5(要素数)
 
-        # print("set lat {0}".format(_toRange(pos_date.pos.y, self._offset.y, offset_degree)))
-        # print("set lon {0}".format(_toRange(pos_date.pos.x, self._offset.x, offset_degree)))
+        # print("set lat {0} - {1}, {2}, {3}".format(_toRange(pos_date.pos.y, self._half_dist.y, offset_degree), pos_date.pos.y, self._half_dist.y, offset_degree))
+        # print("set lon {0} - {1}, {2}, {3}".format(_toRange(pos_date.pos.x, self._half_dist.x, offset_degree), pos_date.pos.x, self._half_dist.x, offset_degree))
         # print("set lev {0}".format(pos_date.pos.z))
         # print("set time {0}".format(_toFormattedDate(pos_date.date)))
         # print('define x=' + self._fn)
 
-        self._ga("set lat {0}".format(_toRange(pos_date.pos.y, self._offset.y, offset_degree)))
-        self._ga("set lon {0}".format(_toRange(pos_date.pos.x, self._offset.x, offset_degree)))
+        self._ga("set lat {0}".format(_toRange(pos_date.pos.y, self._half_dist.y, offset_degree))) # 35 = 35, 48 = 47
+        self._ga("set lon {0}".format(_toRange(pos_date.pos.x, self._half_dist.x, offset_degree)))
         self._ga("set lev {0}".format(pos_date.pos.z))
         self._ga("set time {0}".format(_toFormattedDate(pos_date.date)))
 
@@ -64,8 +66,14 @@ class GrADS:
         self._ga('define x=' + self._fn)
         ret = self._ga.exp('x')
 
-        n = int((offset_degree / self._pitch) if (self._pitch < offset_degree) else self._pitch)
-        ret = ret[1:ret.shape[0] - n, 1:ret.shape[1] - n]
+        # print "*** ret.shape : ", ret.shape
+        # print ret[0:10, [0, 1, 2, ret.shape[1]-3, ret.shape[1]-2, ret.shape[1]-1]]
+        # print ret[ret.shape[0]-10:, [0, 1, 2, ret.shape[1]-3, ret.shape[1]-2, ret.shape[1]-1]]
+        # 開始が「1+」となっているのは、戻り値のサイズが計算上の要素数より1列
+        ret = ret[1 + n:ret.shape[0] - n, 1 + n:ret.shape[1] - n]
+        # print "*** ret.shape : ", ret.shape
+        # print ret[0:10, [0, 1, 2, ret.shape[1]-3, ret.shape[1]-2, ret.shape[1]-1]]
+        # print ret[ret.shape[0]-10:, [0, 1, 2, ret.shape[1]-3, ret.shape[1]-2, ret.shape[1]-1]]
 
         assert ret.shape == (self._ret_shape.x, self._ret_shape.y), "{0} != {1}".format(ret.shape, (self._ret_shape.x, self._ret_shape.y))
 
