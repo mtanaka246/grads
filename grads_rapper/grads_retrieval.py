@@ -70,8 +70,12 @@ def create_temp_map(date, depth, lon_min, lat_min, lon_max, lat_max, pitch, grad
     """
     指定された日付、水深、領域に対して、pitchの間隔ごとの海水温を返す。
     
-    （注）出力データの各レコードは緯度ごとに走査した結果であるが、低緯度から走査しているので、
+    （注１）出力データの各レコードは緯度ごとに走査した結果であるが、低緯度から走査しているので、
     　　　上位レコードが低緯度で下位レコードが高緯度になっているので
+    （注２）結果の行数および列数はGrADSの仕様に従うため、事前に予測することは難しい
+    　　　結果の次元を確定したい場合はcreate_temp_map_ex()を使用する
+    　　　①実験結果からGrADSの戻り値の次元は_calc_size()で定義された式の戻り値+1
+    　　　②戻り値の先頭行および先頭列の値は他のデータに比べ低い値が出力されるため除去
 
     :param date: '年/月/日'の書式で指定された文字列
     :param depth: 水深
@@ -84,6 +88,7 @@ def create_temp_map(date, depth, lon_min, lat_min, lon_max, lat_max, pitch, grad
     :return: 海水温情報のDataFrame
     """
     def _calc_size(v1, v2, pitch):
+        # print "*** ", [math.ceil((v2 - v1) / pitch)], [v2 - v1], [v2], [v1]
         return math.ceil((v2 - v1) / pitch)
 
     def _calc_middle(v1, v2):
@@ -108,3 +113,35 @@ def create_temp_map(date, depth, lon_min, lat_min, lon_max, lat_max, pitch, grad
 
     return pd.DataFrame(temp_map)
 
+def create_temp_map_ex(date, depth, lon, lat, pitch, row_col, grads_ts_ctl):
+    """
+    指定された位置（中心座標）、pitch、row_colから領域を算出し、その領域での指定日、指定水深の海水温を返す。
+    
+    :param date: '年/月/日'の書式で指定された文字列
+    :param depth: 水深
+    :param lon: 領域の中心位置の経度
+    :param lat: 領域の中心位置の緯度
+    :param pitch: 間隔
+    :param row_col: 出力結果の次元（戻り値のshape（行、列）をここで指定する）
+    :param grads_ts_ctl: GrADSのファイル
+    :return: 海水温情報のDataFrame
+    """
+    def _to_pos(depth, lon, lat):
+        return Vector3D(lon, lat, depth)
+
+    def _to_date(date):
+        return dt.strptime(date, '%Y/%m/%d')
+
+    def _to_pos_date(date, depth, lon, lat):
+        return PosDate(_to_pos(depth, lon, lat), _to_date(date))
+
+    def _read_temperature(pos_date, grads_ts_ctl, pitch, row_col):
+        with GrADS(grads_ts_ctl, 't', pitch, row_col) as ga:
+            return ga.read(pos_date)
+
+    # 内部のフォーマットに変換
+    pos_date = _to_pos_date(date, depth, lon, lat)
+
+    temp_map = _read_temperature(pos_date, grads_ts_ctl, pitch, Vector2D(row_col[0], row_col[1]))
+
+    return pd.DataFrame(temp_map)
