@@ -47,18 +47,19 @@ class GrADS1:
         os.chdir(self._current_dir)
 
     def read(self, pos_date):
-        def _toRange(pos, offset, offset_degree, pitch):
-            return str(pos - (offset + offset_degree + pitch)) + " " + str(pos + (offset + offset_degree))
+        def _toRange(pos, offset, offset_degree):
+            return str(pos - (offset + offset_degree)) + " " + str(pos + (offset + offset_degree))
 
         def _toFormattedDate(date):
             return str(date.day) + date.strftime('%b').lower() + str(date.year)
 
-        # GrADSの戻り値で領域の終端側境界にゴミ(---)が含まれることがあるので、検索領域全体を拡大して、その分を最終結果から削除する
-        n = 5 # 拡大する要素数
+        # GrADSの戻り値で領域の先頭行列の値が小さく、また終端側境界にゴミ(---)が含まれることがあるので、
+        # 検索領域全体を拡大して、その分を最終結果から削除する
+        n = 5 # 拡大する要素数（実験より2以上にすること）
         offset_degree = self._pitch * n  # 要素数から拡大領域を計算 - 1°= 0.1° * 5(要素数)
 
-        self._ga("set lat {0}".format(_toRange(pos_date.pos.y, self._half_dist.y, offset_degree, self._pitch)))
-        self._ga("set lon {0}".format(_toRange(pos_date.pos.x, self._half_dist.x, offset_degree, self._pitch)))
+        self._ga("set lat {0}".format(_toRange(pos_date.pos.y, self._half_dist.y, offset_degree)))
+        self._ga("set lon {0}".format(_toRange(pos_date.pos.x, self._half_dist.x, offset_degree)))
         self._ga("set lev {0}".format(pos_date.pos.z))
         self._ga("set time {0}".format(_toFormattedDate(pos_date.date)))
 
@@ -66,8 +67,7 @@ class GrADS1:
         self._ga('define x=' + self._fn)
         ret = self._ga.exp('x')
 
-        # 先頭の行および列は値が実際より小さい値が出るようであるので、検索条件でその分の領域を拡大してここで破棄
-        ret = ret[1 + n:ret.shape[0] - n, 1 + n:ret.shape[1] - n]
+        ret = ret[n:ret.shape[0] - n, n:ret.shape[1] - n]
 
         assert ret.shape == (self._ret_shape.x, self._ret_shape.y), "戻り値のサイズが指定されたサイズと一致しない　：　{0} != {1}".format(ret.shape, (self._ret_shape.x, self._ret_shape.y))
 
@@ -105,12 +105,13 @@ class GrADS2:
         def _toFormattedDate(date):
             return str(date.day) + date.strftime('%b').lower() + str(date.year)
 
-        # GrADSの戻り値で領域の終端側境界にゴミが含まれることがあるので、検索領域全体を拡大して、その分を最終結果から削除する
-        n = 5 # 拡大する要素数
+        # GrADSの戻り値で領域の先頭行列の値が小さく、また終端側境界にゴミ(---)が含まれることがあるので、
+        # 検索領域全体を拡大して、その分を最終結果から削除する
+        n = 5 # 拡大する要素数（実験より2以上にすること）
         offset_degree = self._pitch * n  # 要素数から拡大領域を計算 - 1°= 0.1° * 5(要素数)
 
-        self._ga("set lat {0} {1}".format(lat_min - offset_degree - self._pitch, lat_max + offset_degree))
-        self._ga("set lon {0} {1}".format(lon_min - offset_degree - self._pitch, lon_max + offset_degree))
+        self._ga("set lat {0} {1}".format(lat_min - offset_degree, lat_max + offset_degree))
+        self._ga("set lon {0} {1}".format(lon_min - offset_degree, lon_max + offset_degree))
         self._ga("set lev {0}".format(depth))
         self._ga("set time {0}".format(_toFormattedDate(date)))
 
@@ -119,7 +120,7 @@ class GrADS2:
         ret = self._ga.exp('x')
 
         # 先頭の行および列は値が実際より小さい値が出るようであるので、検索条件でその分の領域を拡大してここで破棄
-        ret = ret[1 + n:ret.shape[0] - n, 1 + n:ret.shape[1] - n]
+        ret = ret[n:ret.shape[0] - n, n:ret.shape[1] - n]
 
         return ret
 
