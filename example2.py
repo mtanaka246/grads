@@ -23,5 +23,7 @@ def exe():
     df_temp_64_64 = create_temp_64_64_with_dataframe(df_date_lon_lat_depth, '/mnt/seadata/ts.ctl')
 
     # ３．ファイルに出力
-    df_temp_64_64.to_csv("output.csv", index=False)
+    # df_temp_64_64.to_csv("output.csv", index=False)
+    print df_temp_64_64
+
 

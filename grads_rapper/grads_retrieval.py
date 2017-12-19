@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import math
 from datetime import datetime as dt
-from _widget.GrADS import GrADS
+from _widget.GrADS import GrADS1, GrADS2
 from _widget.Vector2D import Vector2D
 from _widget.Vector3D import Vector3D
 from _widget.PosDate import PosDate
@@ -55,7 +55,7 @@ def create_temp_64_64_with_dataframe(df_date_lon_lat_depth, grads_ts_ctl):
         return [_to_pos_date(e) for _, e in df_date_lon_lat_depth.iterrows()]
 
     def _read_temperature(pos_date_list, grads_ts_ctl):
-        with GrADS(grads_ts_ctl, 't', 0.1, Vector2D(64, 64)) as ga:
+        with GrADS1(grads_ts_ctl, 't', 0.1, Vector2D(64, 64)) as ga:
             return np.array([ga.read(pos_date) for pos_date in pos_date_list])
 
     # 内部のフォーマットに変換
@@ -87,31 +87,11 @@ def create_temp_map(date, depth, lon_min, lat_min, lon_max, lat_max, pitch, grad
     :param grads_ts_ctl: GrADSのファイル
     :return: 海水温情報のDataFrame
     """
-    def _calc_size(v1, v2, pitch):
-        # print "*** ", [math.ceil((v2 - v1) / pitch)], [v2 - v1], [v2], [v1]
-        return math.ceil((v2 - v1) / pitch)
-
-    def _calc_middle(v1, v2):
-        return (v1 + v2) / 2.0
-
-    def _to_pos(depth, lon_min, lat_min, lon_max, lat_max):
-        return Vector3D(_calc_middle(lon_min, lon_max), _calc_middle(lat_min, lat_max), depth)
-
     def _to_date(date):
         return dt.strptime(date, '%Y/%m/%d')
 
-    def _to_pos_date(date, depth, lon_min, lat_min, lon_max, lat_max):
-        return PosDate(_to_pos(depth, lon_min, lat_min, lon_max, lat_max), _to_date(date))
-
-    def _read_temperature(pos_date, grads_ts_ctl, pitch, row_col):
-        with GrADS(grads_ts_ctl, 't', pitch, row_col) as ga:
-            return ga.read(pos_date)
-
-    pos_date = _to_pos_date(date, depth, lon_min, lat_min, lon_max, lat_max)
-    row_col = Vector2D(_calc_size(lat_min, lat_max, pitch), _calc_size(lon_min, lon_max, pitch))
-    temp_map = _read_temperature(pos_date, grads_ts_ctl, pitch, row_col)
-
-    return pd.DataFrame(temp_map)
+    with GrADS2(grads_ts_ctl, 't', pitch) as ga:
+        return pd.DataFrame(ga.read(_to_date(date), depth, lon_min, lat_min, lon_max, lat_max))
 
 def create_temp_map_ex(date, depth, lon, lat, pitch, row_col, grads_ts_ctl):
     """
@@ -136,12 +116,11 @@ def create_temp_map_ex(date, depth, lon, lat, pitch, row_col, grads_ts_ctl):
         return PosDate(_to_pos(depth, lon, lat), _to_date(date))
 
     def _read_temperature(pos_date, grads_ts_ctl, pitch, row_col):
-        with GrADS(grads_ts_ctl, 't', pitch, row_col) as ga:
+        with GrADS1(grads_ts_ctl, 't', pitch, row_col) as ga:
             return ga.read(pos_date)
 
     # 内部のフォーマットに変換
     pos_date = _to_pos_date(date, depth, lon, lat)
-
     temp_map = _read_temperature(pos_date, grads_ts_ctl, pitch, Vector2D(row_col[0], row_col[1]))
 
     return pd.DataFrame(temp_map)
